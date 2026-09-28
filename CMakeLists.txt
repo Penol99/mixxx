@@ -101,6 +101,9 @@ endif()
 if(
   (DEFINED ENV{BUILDENV_URL} OR (APPLE AND NOT IOS) OR WIN32 OR ANDROID)
   AND NOT IS_DIRECTORY "${MIXXX_VCPKG_ROOT}"
+  # Local experimental build: skip the vcpkg buildenv download and use system
+  # (MSYS2) dependencies instead. Set -DMIXXX_SKIP_BUILDENV=ON.
+  AND NOT MIXXX_SKIP_BUILDENV
 )
   if(NOT DEFINED BUILDENV_BASEPATH)
     if(DEFINED ENV{BUILDENV_BASEPATH})
@@ -2929,14 +2932,19 @@ if(STEMSEP_ONNX)
   if(NOT STEM)
     message(FATAL_ERROR "STEMSEP_ONNX requires STEM to be enabled")
   endif()
-  find_package(onnxruntime CONFIG)
-  if(NOT onnxruntime_FOUND)
-    # MSYS2 / distro packages expose it via pkg-config instead of a CMake config.
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(onnxruntime REQUIRED IMPORTED_TARGET libonnxruntime)
-    target_link_libraries(mixxx-lib PRIVATE PkgConfig::onnxruntime)
-  else()
+  find_package(onnxruntime CONFIG QUIET)
+  if(onnxruntime_FOUND)
     target_link_libraries(mixxx-lib PRIVATE onnxruntime::onnxruntime)
+  else()
+    # MSYS2 / distro packages ship a plain lib + headers (no CMake config).
+    find_path(ONNXRUNTIME_INCLUDE_DIR onnxruntime_cxx_api.h
+      PATH_SUFFIXES onnxruntime onnxruntime/core/session)
+    find_library(ONNXRUNTIME_LIB NAMES onnxruntime)
+    if(NOT ONNXRUNTIME_INCLUDE_DIR OR NOT ONNXRUNTIME_LIB)
+      message(FATAL_ERROR "STEMSEP_ONNX: onnxruntime headers/library not found")
+    endif()
+    target_include_directories(mixxx-lib PRIVATE "${ONNXRUNTIME_INCLUDE_DIR}")
+    target_link_libraries(mixxx-lib PRIVATE "${ONNXRUNTIME_LIB}")
   endif()
   target_compile_definitions(mixxx-lib PUBLIC __STEMSEP_ONNX__)
   target_sources(mixxx-lib
@@ -5733,10 +5741,9 @@ if(WIN32)
   elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i[3456]86|x86)$")
     set(CPACK_WIX_ARCHITECTURE "x86")
   else()
-    message(
-      FATAL_ERROR
-      "WIX: Unsupported architecture: ${CMAKE_SYSTEM_PROCESSOR}"
-    )
+    # MinGW leaves CMAKE_SYSTEM_PROCESSOR empty; default to x64 for the local
+    # experimental build (packaging is not used here anyway).
+    set(CPACK_WIX_ARCHITECTURE "x64")
   endif()
 
   # Build the custom action DLL for cross-scope upgrade detection.

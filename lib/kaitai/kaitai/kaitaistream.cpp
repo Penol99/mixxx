@@ -18,6 +18,13 @@
 #define bswap_16(x) _byteswap_ushort(x)
 #define bswap_32(x) _byteswap_ulong(x)
 #define bswap_64(x) _byteswap_uint64(x)
+#elif defined(_WIN32) // MinGW / Windows GCC: no <endian.h>, use builtins
+#define __LITTLE_ENDIAN     1234
+#define __BIG_ENDIAN        4321
+#define __BYTE_ORDER        __LITTLE_ENDIAN
+#define bswap_16(x) __builtin_bswap16(x)
+#define bswap_32(x) __builtin_bswap32(x)
+#define bswap_64(x) __builtin_bswap64(x)
 #elif defined(__QNX__) // __QNX__
 #include <sys/param.h>
 #include <gulliver.h>

@@ -2,7 +2,11 @@
 #include "gitinfo.h"
 
 #ifdef GIT_COMMIT_YEAR
-    #define CUR_YEAR                GIT_COMMIT_YEAR
+    // Stringify so string concatenation works with windres/MinGW (where
+    // GIT_COMMIT_YEAR is a bare integer, not a quoted string).
+    #define CUR_YEAR_STRINGIFY_HELPER(x) #x
+    #define CUR_YEAR_STRINGIFY(x)        CUR_YEAR_STRINGIFY_HELPER(x)
+    #define CUR_YEAR                     CUR_YEAR_STRINGIFY(GIT_COMMIT_YEAR)
 #else
     #define CUR_YEAR                "@MIXXX_YEAR@"
 #endif
