@@ -13,6 +13,13 @@
 #include <QCryptographicHash>
 #include <QDir>
 
+extern "C" {
+#include <libavutil/channel_layout.h>
+#include <libavutil/mathematics.h>
+#include <libavutil/samplefmt.h>
+#include <libswresample/swresample.h>
+}
+
 #include "analyzer/stemfilewriter.h"
 #include "analyzer/stemseparator.h"
 #include "util/cmdlineargs.h"
@@ -20,6 +27,54 @@
 
 namespace {
 const mixxx::Logger kLogger("AnalyzerStemSeparation");
+
+#ifdef __STEMSEP_ONNX__
+// Resample interleaved float audio to the model's 44.1 kHz stereo format.
+// Returns empty on failure; returns the input unchanged when already correct.
+std::vector<CSAMPLE> resampleToStemFormat(
+        const std::vector<CSAMPLE>& in, int srcRate, int srcChannels) {
+    if (srcRate == StemSeparator::kModelSampleRate && srcChannels == 2) {
+        return in;
+    }
+    SwrContext* swr = nullptr;
+    AVChannelLayout inLayout;
+    AVChannelLayout outLayout;
+    av_channel_layout_default(&inLayout, srcChannels);
+    av_channel_layout_default(&outLayout, 2);
+    if (swr_alloc_set_opts2(&swr,
+                &outLayout,
+                AV_SAMPLE_FMT_FLT,
+                StemSeparator::kModelSampleRate,
+                &inLayout,
+                AV_SAMPLE_FMT_FLT,
+                srcRate,
+                0,
+                nullptr) < 0 ||
+            swr_init(swr) < 0) {
+        if (swr) {
+            swr_free(&swr);
+        }
+        return {};
+    }
+    const int inFrames = static_cast<int>(in.size() / srcChannels);
+    const int64_t outFramesEst = av_rescale_rnd(
+            swr_get_delay(swr, srcRate) + inFrames,
+            StemSeparator::kModelSampleRate,
+            srcRate,
+            AV_ROUND_UP);
+    std::vector<CSAMPLE> out(static_cast<size_t>(outFramesEst) * 2);
+    const uint8_t* inPtr = reinterpret_cast<const uint8_t*>(in.data());
+    uint8_t* outPtr = reinterpret_cast<uint8_t*>(out.data());
+    const int outFrames = swr_convert(
+            swr, &outPtr, static_cast<int>(outFramesEst), &inPtr, inFrames);
+    swr_free(&swr);
+    if (outFrames < 0) {
+        return {};
+    }
+    out.resize(static_cast<size_t>(outFrames) * 2);
+    return out;
+}
+#endif
 
 // ponytail: single config flag, no per-model settings yet. Add a Stems
 // preferences pane when a second model or execution-provider choice ships.
@@ -73,14 +128,14 @@ bool AnalyzerStemSeparation::processSamples(const CSAMPLE* pIn, SINT count) {
 
 void AnalyzerStemSeparation::storeResults(TrackPointer pTrack) {
 #ifdef __STEMSEP_ONNX__
-    // Demucs requires 44.1 kHz stereo. ponytail: skip (don't guess) when the
-    // decoded signal doesn't match; wire a resampler here when we support
-    // arbitrary sample rates / channel counts.
-    if (m_channelCount.value() != 2 ||
-            m_sampleRate.value() != StemSeparator::kModelSampleRate) {
-        kLogger.warning() << "Skipping" << pTrack->getLocation()
-                          << "- need 44.1 kHz stereo, got" << m_sampleRate
-                          << "Hz /" << m_channelCount.value() << "ch";
+    // Demucs requires 44.1 kHz stereo; resample whatever the decoder gave us.
+    if (m_channelCount.value() < 1) {
+        return;
+    }
+    const std::vector<CSAMPLE> samples = resampleToStemFormat(
+            m_samples, m_sampleRate.value(), m_channelCount.value());
+    if (samples.empty()) {
+        kLogger.warning() << "Resampling failed for" << pTrack->getLocation();
         return;
     }
 
@@ -97,7 +152,7 @@ void AnalyzerStemSeparation::storeResults(TrackPointer pTrack) {
         return; // load() already logged
     }
 
-    const auto stems = separator.separate(m_samples);
+    const auto stems = separator.separate(samples);
     if (stems.size() != StemSeparator::kNumStems) {
         kLogger.warning() << "Separation produced no stems for" << pTrack->getLocation();
         return;
@@ -117,7 +172,8 @@ void AnalyzerStemSeparation::storeResults(TrackPointer pTrack) {
     const QString ffmpegPath = m_pConfig->getValue(
             ConfigKey(kConfigGroup, kFfmpegPathKey), QStringLiteral("ffmpeg"));
 
-    if (StemFileWriter::write(outPath, stems, m_sampleRate.value(), ffmpegPath)) {
+    if (StemFileWriter::write(
+                outPath, stems, StemSeparator::kModelSampleRate, ffmpegPath)) {
         kLogger.info() << "Stems ready:" << outPath
                        << "(load this file to play stems)";
         // ponytail: next step is auto-loading this onto the requesting deck.
