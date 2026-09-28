@@ -2,6 +2,7 @@
 
 #include <QRegularExpression>
 
+#include "analyzer/analyzerscheduledtrack.h"
 #include "audio/types.h"
 #include "control/controlobject.h"
 #include "effects/effectsmanager.h"
@@ -348,6 +349,27 @@ void PlayerManager::addDeckInner() {
             &EngineDeck::noPassthroughInputConfigured,
             this,
             &PlayerManager::noDeckPassthroughInputConfigured);
+#ifdef __STEM__
+    // Deck [ChannelX],separation_trigger -> schedule offline stem separation of
+    // the loaded track. The engine can't analyze itself, so route it here where
+    // both the loaded track and the analysis scheduler are reachable.
+    connect(pDeck->getEngineDeck(),
+            &EngineDeck::stemSeparationRequested,
+            this,
+            [this, pDeck]() {
+                TrackPointer pTrack = pDeck->getLoadedTrack();
+                if (!pTrack || !m_pTrackAnalysisScheduler) {
+                    return;
+                }
+                AnalyzerTrack::Options options;
+                options.separateStems = true;
+                if (m_pTrackAnalysisScheduler->scheduleTrack(
+                            AnalyzerScheduledTrack(pTrack->getId(), options))) {
+                    m_pTrackAnalysisScheduler->resume();
+                }
+                emit trackAnalyzerProgress(pTrack->getId(), kAnalyzerProgressUnknown);
+            });
+#endif
     connect(pDeck,
             &BaseTrackPlayer::noVinylControlInputConfigured,
             this,
