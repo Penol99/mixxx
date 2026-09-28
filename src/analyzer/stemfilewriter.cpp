@@ -20,16 +20,18 @@ const mixxx::Logger kLogger("StemFileWriter");
 constexpr int kNumStems = 4;
 constexpr int kChannels = 2;
 
-// Matches StemInfoImporter::kStemDefaultColor and the standard Demucs order.
+// Order MUST match the HTDemucs ONNX output: [drums, bass, other, vocals].
+// Labels/colours are attached per output index so each named stem holds the
+// right audio.
 struct StemMeta {
     const char* name;
     const char* color;
 };
 constexpr StemMeta kStems[kNumStems] = {
-        {"Vocals", "#009E73"},
         {"Drums", "#D55E00"},
         {"Bass", "#CC79A7"},
         {"Other", "#56B4E9"},
+        {"Vocals", "#009E73"},
 };
 
 void appendBE32(QByteArray& out, quint32 v) {

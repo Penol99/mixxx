@@ -38,6 +38,9 @@ struct StemSeparator::Impl {
     Ort::AllocatorWithDefaultOptions& alloc = allocator;
     std::string inputName;
     std::string outputName;
+    // Frames per inference call, taken from the model's declared input length
+    // when fixed, else the default chunk.
+    int segmentFrames = kChunkFrames;
 };
 
 StemSeparator::StemSeparator()
@@ -65,6 +68,18 @@ bool StemSeparator::load(const QString& modelPath) {
                 m_pImpl->session->GetInputNameAllocated(0, m_pImpl->alloc).get();
         m_pImpl->outputName =
                 m_pImpl->session->GetOutputNameAllocated(0, m_pImpl->alloc).get();
+
+        // Adapt to the model's declared input length. HTDemucs exports fix the
+        // segment (e.g. 343980 frames); dynamic exports report -1, so we fall
+        // back to the default chunk.
+        const auto shape = m_pImpl->session->GetInputTypeInfo(0)
+                                   .GetTensorTypeAndShapeInfo()
+                                   .GetShape();
+        const int64_t last = shape.empty() ? -1 : shape.back();
+        if (last > 0) {
+            m_pImpl->segmentFrames = static_cast<int>(last);
+        }
+        kLogger.info() << "Model loaded, segment frames:" << m_pImpl->segmentFrames;
     } catch (const Ort::Exception& e) {
         kLogger.warning() << "Failed to load model" << modelPath << ":" << e.what();
         m_pImpl->session.reset();
@@ -88,18 +103,19 @@ std::vector<std::vector<CSAMPLE>> StemSeparator::separate(
     auto memInfo = Ort::MemoryInfo::CreateCpu(
             OrtArenaAllocator, OrtMemTypeDefault);
 
+    const int segFrames = m_pImpl->segmentFrames;
     // Deinterleave one chunk at a time into planar [channel][frame] and run
     // the model. Output shape is [batch=1, source=kNumStems, channel, frame].
-    std::vector<float> planar(static_cast<size_t>(kChannels) * kChunkFrames);
-    const std::array<int64_t, 3> inputShape = {1, kChannels, kChunkFrames};
+    std::vector<float> planar(static_cast<size_t>(kChannels) * segFrames);
+    const std::array<int64_t, 3> inputShape = {1, kChannels, segFrames};
 
     try {
-        for (int start = 0; start < totalFrames; start += kChunkFrames) {
-            const int frames = std::min(kChunkFrames, totalFrames - start);
+        for (int start = 0; start < totalFrames; start += segFrames) {
+            const int frames = std::min(segFrames, totalFrames - start);
             std::fill(planar.begin(), planar.end(), 0.0f);
             for (int ch = 0; ch < kChannels; ++ch) {
                 for (int f = 0; f < frames; ++f) {
-                    planar[static_cast<size_t>(ch) * kChunkFrames + f] =
+                    planar[static_cast<size_t>(ch) * segFrames + f] =
                             interleavedStereo[(static_cast<size_t>(start + f)) *
                                             kChannels +
                                     ch];
@@ -126,7 +142,7 @@ std::vector<std::vector<CSAMPLE>> StemSeparator::separate(
                 for (int ch = 0; ch < kChannels; ++ch) {
                     const float* src = out +
                             ((static_cast<size_t>(s) * kChannels + ch) *
-                                    kChunkFrames);
+                                    segFrames);
                     for (int f = 0; f < frames; ++f) {
                         stems[s][(static_cast<size_t>(start + f)) * kChannels + ch] =
                                 src[f];

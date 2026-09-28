@@ -9,7 +9,7 @@
 #include "util/types.h"
 
 /// Runs a Demucs v4 (HTDemucs) ONNX model to split interleaved stereo audio
-/// into 4 stems: [vocals, drums, bass, other].
+/// into 4 stems in the model's native order: [drums, bass, other, vocals].
 ///
 /// ONNXRuntime is kept out of this header via pimpl so only analyzer TUs that
 /// actually do inference pull in the heavy dependency. See epic
