@@ -68,8 +68,10 @@ EngineDeck::EngineDeck(
 
     m_pSeparationTrigger = std::make_unique<ControlPushButton>(
             ConfigKey(getGroup(), "separation_trigger"));
-    m_pSeparationTrigger->connectValueChanged(
-            this, &EngineDeck::slotSeparationTriggered);
+    connect(m_pSeparationTrigger.get(),
+            &ControlObject::valueChanged,
+            this,
+            &EngineDeck::slotSeparationTriggered);
     // Progress 0-100, written by the separation task; not read-only so the
     // task can push updates via a ControlProxy.
     m_pSeparationPercentage = std::make_unique<ControlObject>(
