@@ -47,7 +47,7 @@ bool AnalyzerStemSeparation::processSamples(const CSAMPLE* pIn, SINT count) {
     Q_UNUSED(pIn);
     // ponytail: real impl buffers/streams audio into the Demucs session here.
     // The stub only tracks length so progress + storeResults are honest.
-    m_framesProcessed += count / std::max(m_channelCount.value(), 1);
+    m_framesProcessed += count / std::max<int>(m_channelCount.value(), 1);
     return true;
 }
 
