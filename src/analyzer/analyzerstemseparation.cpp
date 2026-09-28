@@ -10,7 +10,12 @@
 #include "util/logger.h"
 
 #ifdef __STEMSEP_ONNX__
+#include <QCryptographicHash>
+#include <QDir>
+
+#include "analyzer/stemfilewriter.h"
 #include "analyzer/stemseparator.h"
+#include "util/cmdlineargs.h"
 #endif
 
 namespace {
@@ -21,6 +26,7 @@ const mixxx::Logger kLogger("AnalyzerStemSeparation");
 constexpr char kConfigGroup[] = "[Library]";
 constexpr char kConfigKey[] = "StemSeparationEnabled";
 constexpr char kModelPathKey[] = "StemSeparationModelPath";
+constexpr char kFfmpegPathKey[] = "StemSeparationFfmpegPath";
 } // anonymous namespace
 
 AnalyzerStemSeparation::AnalyzerStemSeparation(UserSettingsPointer pConfig)
@@ -90,17 +96,25 @@ void AnalyzerStemSeparation::storeResults(TrackPointer pTrack) {
         return;
     }
 
-    // ponytail: STUB output. Real next step: encode these 4 stem buffers into a
-    // native .stem.mp4 via the writer, cache it keyed by track hash, and mark
-    // the track stem-capable so EngineDeck/SoundSourceSTEM loads it. Logging RMS
-    // here proves inference actually ran end to end.
-    for (int s = 0; s < StemSeparator::kNumStems; ++s) {
-        double sumSq = 0.0;
-        for (const CSAMPLE v : stems[s]) {
-            sumSq += static_cast<double>(v) * v;
-        }
-        const double rms = stems[s].empty() ? 0.0 : std::sqrt(sumSq / stems[s].size());
-        kLogger.info() << "Stem" << s << "RMS" << rms << "for" << pTrack->getLocation();
+    // Cache the result as a playable .stem.mp4 keyed by the source path, so
+    // reloads are instant and the user can load it to hear stems immediately.
+    const QString cacheDir =
+            QDir(CmdlineArgs::Instance().getSettingsPath()).filePath("stems");
+    QDir().mkpath(cacheDir);
+    const QString hash = QString::fromLatin1(
+            QCryptographicHash::hash(pTrack->getLocation().toUtf8(),
+                    QCryptographicHash::Sha1)
+                    .toHex());
+    const QString outPath = QDir(cacheDir).filePath(hash + ".stem.mp4");
+
+    const QString ffmpegPath = m_pConfig->getValue(
+            ConfigKey(kConfigGroup, kFfmpegPathKey), QStringLiteral("ffmpeg"));
+
+    if (StemFileWriter::write(outPath, stems, m_sampleRate.value(), ffmpegPath)) {
+        kLogger.info() << "Stems ready:" << outPath
+                       << "(load this file to play stems)";
+        // ponytail: next step is auto-loading this onto the requesting deck.
+        // For now the cached file is discoverable and manually loadable.
     }
 #else
     kLogger.info() << "Stem separation stub (built without ONNX) for"

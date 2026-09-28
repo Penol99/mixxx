@@ -2939,7 +2939,11 @@ if(STEMSEP_ONNX)
     target_link_libraries(mixxx-lib PRIVATE onnxruntime::onnxruntime)
   endif()
   target_compile_definitions(mixxx-lib PUBLIC __STEMSEP_ONNX__)
-  target_sources(mixxx-lib PRIVATE src/analyzer/stemseparator.cpp)
+  target_sources(mixxx-lib
+    PRIVATE
+      src/analyzer/stemseparator.cpp
+      src/analyzer/stemfilewriter.cpp
+  )
 endif()
 
 if(BUILD_TESTING)
