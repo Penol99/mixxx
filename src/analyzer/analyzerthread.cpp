@@ -117,10 +117,10 @@ void AnalyzerThread::doRun() {
     m_analyzers.push_back(AnalyzerWithState(std::make_unique<AnalyzerKey>(m_pConfig)));
     m_analyzers.push_back(AnalyzerWithState(std::make_unique<AnalyzerSilence>(m_pConfig)));
 #ifdef __STEM__
-    if (AnalyzerStemSeparation::isEnabled(m_pConfig)) {
-        m_analyzers.push_back(AnalyzerWithState(
-                std::make_unique<AnalyzerStemSeparation>(m_pConfig)));
-    }
+    // Always registered; AnalyzerStemSeparation::initialize() decides per track
+    // whether to actually run (global setting or on-demand menu request).
+    m_analyzers.push_back(AnalyzerWithState(
+            std::make_unique<AnalyzerStemSeparation>(m_pConfig)));
 #endif
     DEBUG_ASSERT(!m_analyzers.empty());
     kLogger.debug() << "Activated" << m_analyzers.size() << "analyzers";

@@ -44,6 +44,13 @@ bool AnalyzerStemSeparation::initialize(const AnalyzerTrack& track,
         SINT frameLength) {
     Q_UNUSED(frameLength);
 
+    // Run only when the user asked: globally (separate-on-import) or per-track
+    // via the "Separate stems" menu action. Keeps this off the hot path for
+    // ordinary analysis.
+    if (!isEnabled(m_pConfig) && !track.getOptions().separateStems) {
+        return false;
+    }
+
     // Never separate a track that is already stems.
     if (!track.getTrack()->getStemInfo().isEmpty()) {
         return false;

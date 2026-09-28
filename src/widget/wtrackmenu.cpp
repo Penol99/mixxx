@@ -592,6 +592,18 @@ void WTrackMenu::createActions() {
                 &QAction::triggered,
                 this,
                 &WTrackMenu::slotReanalyzeWithVariableTempo);
+
+#ifdef __STEMSEP_ONNX__
+        m_pSeparateStemsAction =
+                make_parented<QAction>(tr("Separate stems (AI)"), this);
+        m_pSeparateStemsAction->setToolTip(
+                tr("Split into vocals, drums, bass and other. Runs once, then "
+                   "the result is cached and loads instantly."));
+        connect(m_pSeparateStemsAction,
+                &QAction::triggered,
+                this,
+                &WTrackMenu::slotSeparateStems);
+#endif
     }
 
     // This action is only usable when m_deckGroup is set. That is true only
@@ -767,6 +779,10 @@ void WTrackMenu::setupActions() {
         m_pAnalyzeMenu->addAction(m_pReanalyzeAction);
         m_pAnalyzeMenu->addAction(m_pReanalyzeConstBpmAction);
         m_pAnalyzeMenu->addAction(m_pReanalyzeVarBpmAction);
+#ifdef __STEMSEP_ONNX__
+        m_pAnalyzeMenu->addSeparator();
+        m_pAnalyzeMenu->addAction(m_pSeparateStemsAction);
+#endif
         addMenu(m_pAnalyzeMenu);
     }
 
@@ -1816,6 +1832,14 @@ void WTrackMenu::slotReanalyzeWithFixedTempo() {
     options.useFixedTempo = true;
     addToAnalysis(options);
 }
+
+#ifdef __STEMSEP_ONNX__
+void WTrackMenu::slotSeparateStems() {
+    AnalyzerTrack::Options options;
+    options.separateStems = true;
+    addToAnalysis(options);
+}
+#endif
 
 void WTrackMenu::slotReanalyzeWithVariableTempo() {
     clearBeats();

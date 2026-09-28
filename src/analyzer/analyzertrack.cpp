@@ -2,6 +2,11 @@
 
 #include "util/assert.h"
 
+AnalyzerTrack::AnalyzerTrack(TrackPointer track)
+        : m_track(track) {
+    DEBUG_ASSERT(track);
+}
+
 AnalyzerTrack::AnalyzerTrack(TrackPointer track, Options options)
         : m_track(track), m_options(options) {
     DEBUG_ASSERT(track);
