@@ -49,6 +49,10 @@
 #include "preferences/dialog/dlgprefmodplug.h"
 #endif // __MODPLUG__
 
+#ifdef __STEMSEP_ONNX__
+#include "preferences/dialog/dlgprefstems.h"
+#endif // __STEMSEP_ONNX__
+
 #ifdef Q_OS_MACOS
 #include "util/darkappearance.h"
 #endif
@@ -250,6 +254,14 @@ DlgPreferences::DlgPreferences(
             tr("Modplug Decoder"),
             "ic_preferences_modplug.svg");
 #endif // __MODPLUG__
+
+#ifdef __STEMSEP_ONNX__
+    addPageWidget(PreferencesPage(
+                          new DlgPrefStems(this, m_pConfig),
+                          new QTreeWidgetItem(contentsTreeWidget, QTreeWidgetItem::Type)),
+            tr("Stems"),
+            "ic_preferences_bpmdetect.svg");
+#endif // __STEMSEP_ONNX__
 
     // Find accept and apply buttons
     const auto buttons = buttonBox->buttons();

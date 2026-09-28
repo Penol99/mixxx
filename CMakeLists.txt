@@ -2943,6 +2943,7 @@ if(STEMSEP_ONNX)
     PRIVATE
       src/analyzer/stemseparator.cpp
       src/analyzer/stemfilewriter.cpp
+      src/preferences/dialog/dlgprefstems.cpp
   )
 endif()
 
