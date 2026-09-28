@@ -76,12 +76,19 @@ class EngineDeck : public EngineChannel, public AudioDestination {
 
   signals:
     void noPassthroughInputConfigured();
+#ifdef __STEM__
+    // Emitted when the user presses [ChannelX],separation_trigger. A consumer
+    // in the GUI/library layer (which knows the deck's loaded track) should run
+    // offline stem separation and push progress to separation_percentage.
+    void stemSeparationRequested();
+#endif
 
   public slots:
     void slotPassthroughToggle(double v);
     void slotPassthroughChangeRequest(double v);
 #ifdef __STEM__
     void slotTrackLoaded(TrackPointer pNewTrack, TrackPointer);
+    void slotSeparationTriggered(double v);
 #endif
 
   private:
@@ -101,6 +108,11 @@ class EngineDeck : public EngineChannel, public AudioDestination {
     // Stem buffer used to retrieve all the channel to mix together
     mixxx::SampleBuffer m_stemBuffer;
     std::unique_ptr<ControlObject> m_pStemCount;
+    // Offline AI stem separation controls (epic mixxxdj/mixxx#15495):
+    // separation_trigger (push) requests separation of the loaded track;
+    // separation_percentage (0-100) reports progress back to skins.
+    std::unique_ptr<ControlPushButton> m_pSeparationTrigger;
+    std::unique_ptr<ControlObject> m_pSeparationPercentage;
     std::vector<std::unique_ptr<ControlPotmeter>> m_stemGain;
     std::vector<std::unique_ptr<ControlPushButton>> m_stemMute;
     std::vector<std::unique_ptr<EngineVuMeter>> m_stemVuMeter;

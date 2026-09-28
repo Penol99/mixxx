@@ -66,6 +66,15 @@ EngineDeck::EngineDeck(
     m_pStemCount = std::make_unique<ControlObject>(ConfigKey(getGroup(), "stem_count"));
     m_pStemCount->setReadOnly();
 
+    m_pSeparationTrigger = std::make_unique<ControlPushButton>(
+            ConfigKey(getGroup(), "separation_trigger"));
+    m_pSeparationTrigger->connectValueChanged(
+            this, &EngineDeck::slotSeparationTriggered);
+    // Progress 0-100, written by the separation task; not read-only so the
+    // task can push updates via a ControlProxy.
+    m_pSeparationPercentage = std::make_unique<ControlObject>(
+            ConfigKey(getGroup(), "separation_percentage"));
+
     m_stemGain.reserve(mixxx::kMaxSupportedStems);
     m_stemMute.reserve(mixxx::kMaxSupportedStems);
     m_stemVuMeter.reserve(mixxx::kMaxSupportedStems);
@@ -109,6 +118,14 @@ void EngineDeck::slotTrackLoaded(TrackPointer pNewTrack,
     } else {
         m_pStemCount->forceSet(0);
     }
+}
+
+void EngineDeck::slotSeparationTriggered(double v) {
+    if (v <= 0.0) {
+        return; // ignore button release
+    }
+    // The engine can't run analysis itself; hand off to the GUI/library layer.
+    emit stemSeparationRequested();
 }
 #endif
 
