@@ -2,6 +2,8 @@
 
 #ifdef __STEM__
 
+#include <vector>
+
 #include "analyzer/analyzer.h"
 #include "preferences/usersettings.h"
 
@@ -34,6 +36,9 @@ class AnalyzerStemSeparation : public Analyzer {
     mixxx::audio::SampleRate m_sampleRate;
     mixxx::audio::ChannelCount m_channelCount;
     SINT m_framesProcessed;
+    /// Whole-track interleaved sample buffer (offline separation needs the full
+    /// signal). Only filled when separation is actually going to run.
+    std::vector<CSAMPLE> m_samples;
 };
 
 #endif // __STEM__

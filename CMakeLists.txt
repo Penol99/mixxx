@@ -2922,6 +2922,26 @@ if(STEM)
   endif()
 endif()
 
+# Offline AI stem separation (Demucs via ONNXRuntime). Requires STEM.
+# Off by default until the runtime + model ship on all platforms.
+default_option(STEMSEP_ONNX "AI stem separation (ONNXRuntime/Demucs)" "OFF")
+if(STEMSEP_ONNX)
+  if(NOT STEM)
+    message(FATAL_ERROR "STEMSEP_ONNX requires STEM to be enabled")
+  endif()
+  find_package(onnxruntime CONFIG)
+  if(NOT onnxruntime_FOUND)
+    # MSYS2 / distro packages expose it via pkg-config instead of a CMake config.
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(onnxruntime REQUIRED IMPORTED_TARGET libonnxruntime)
+    target_link_libraries(mixxx-lib PRIVATE PkgConfig::onnxruntime)
+  else()
+    target_link_libraries(mixxx-lib PRIVATE onnxruntime::onnxruntime)
+  endif()
+  target_compile_definitions(mixxx-lib PUBLIC __STEMSEP_ONNX__)
+  target_sources(mixxx-lib PRIVATE src/analyzer/stemseparator.cpp)
+endif()
+
 if(BUILD_TESTING)
   set(
     src-mixxx-test
