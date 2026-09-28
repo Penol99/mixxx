@@ -1206,6 +1206,7 @@ add_library(
   src/analyzer/analyzerkey.cpp
   src/analyzer/analyzerscheduledtrack.cpp
   src/analyzer/analyzersilence.cpp
+  src/analyzer/analyzerstemseparation.cpp
   src/analyzer/analyzerthread.cpp
   src/analyzer/analyzertrack.cpp
   src/analyzer/analyzerwaveform.cpp
