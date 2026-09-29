@@ -158,8 +158,12 @@ void AnalyzerStemSeparation::storeResults(TrackPointer pTrack) {
     // band (95..100%) so the existing progress bar advances during inference.
     const auto stems = separator.separate(samples, [this](double frac) {
         if (m_progressCb) {
-            m_progressCb(kAnalyzerProgressFinalizing +
-                    frac * (kAnalyzerProgressDone - kAnalyzerProgressFinalizing));
+            // Busy progress must stay strictly below Done (asserted by the
+            // scheduler); the final Done is emitted by AnalyzerThread.
+            m_progressCb(std::min(kAnalyzerProgressDone - 0.001,
+                    kAnalyzerProgressFinalizing +
+                            frac * (kAnalyzerProgressDone -
+                                           kAnalyzerProgressFinalizing)));
         }
     });
     if (stems.size() != StemSeparator::kNumStems) {
