@@ -10,6 +10,20 @@
 [Mixxx] is Free DJ software that gives you everything you need to perform live
 DJ mixes. Mixxx works on GNU/Linux, Windows, and macOS.
 
+## About this fork
+
+This is an experimental fork that adds **offline AI stem separation**. Right-click
+a track → **Analyze → Separate stems (AI)** to split it into 4 stems (drums, bass,
+other, vocals) with a local Demucs ONNX model. Results are cached as a standard
+`.stem.mp4` and play through Mixxx's existing per-stem volume/mute controls, with a
+progress readout in the toolbar while separating.
+
+First-time setup: open **Preferences → Stems** to point Mixxx at the Demucs ONNX
+model and the FFmpeg executable, and optionally enable separating automatically
+on analysis.
+
+Build with `-DSTEMSEP_ONNX=ON` (needs the Demucs ONNX model + FFmpeg).
+
 ## Quick Start
 
 To get started with Mixxx:
