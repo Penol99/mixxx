@@ -1,6 +1,7 @@
 #include "library/browse/browsefeature.h"
 
 #include <QAction>
+#include <QDir>
 #include <QFileInfo>
 #include <QMenu>
 #include <QPushButton>
@@ -10,6 +11,7 @@
 
 #include "library/browse/foldertreemodel.h"
 #include "library/library.h"
+#include "util/cmdlineargs.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/treeitem.h"
@@ -109,6 +111,17 @@ BrowseFeature::BrowseFeature(
     std::unique_ptr<TreeItem> pRootItem = TreeItem::newRoot(this);
 
     m_pQuickLinkItem = pRootItem->appendChild(tr("Quick Links"), QUICK_LINK_NODE);
+
+#ifdef __STEMSEP_ONNX__
+    // Pinned link to the AI stem separation output folder (paths must end '/').
+    QString stemsPath =
+            QDir(CmdlineArgs::Instance().getSettingsPath()).filePath(QStringLiteral("stems"));
+    QDir().mkpath(stemsPath);
+    if (!stemsPath.endsWith('/')) {
+        stemsPath.append('/');
+    }
+    m_pQuickLinkItem->appendChild(tr("Stems"), stemsPath);
+#endif
 
     // Create the 'devices' shortcut
 #if defined(__WINDOWS__)

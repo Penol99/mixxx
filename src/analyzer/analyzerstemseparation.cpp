@@ -10,8 +10,8 @@
 #include "util/logger.h"
 
 #ifdef __STEMSEP_ONNX__
-#include <QCryptographicHash>
 #include <QDir>
+#include <QFileInfo>
 
 extern "C" {
 #include <libavutil/channel_layout.h>
@@ -180,16 +180,15 @@ void AnalyzerStemSeparation::storeResults(TrackPointer pTrack) {
         return;
     }
 
-    // Cache the result as a playable .stem.mp4 keyed by the source path, so
-    // reloads are instant and the user can load it to hear stems immediately.
+    // Cache the result as a playable .stem.mp4 named after the source track (its
+    // file base name), so the Stems folder lists readable names. Re-separating a
+    // track overwrites its own file. ponytail: same base name in different dirs
+    // collides; add a short hash suffix if that ever bites.
     const QString cacheDir =
             QDir(CmdlineArgs::Instance().getSettingsPath()).filePath("stems");
     QDir().mkpath(cacheDir);
-    const QString hash = QString::fromLatin1(
-            QCryptographicHash::hash(pTrack->getLocation().toUtf8(),
-                    QCryptographicHash::Sha1)
-                    .toHex());
-    const QString outPath = QDir(cacheDir).filePath(hash + ".stem.mp4");
+    const QString baseName = QFileInfo(pTrack->getLocation()).completeBaseName();
+    const QString outPath = QDir(cacheDir).filePath(baseName + ".stem.mp4");
 
     const QString ffmpegPath = m_pConfig->getValue(
             ConfigKey(kConfigGroup, kFfmpegPathKey), QStringLiteral("ffmpeg"));
