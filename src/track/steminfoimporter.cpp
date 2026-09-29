@@ -18,7 +18,13 @@ namespace {
 
 const mixxx::Logger kLogger("StemInfoImporter");
 constexpr int kSupportedStemVersion = 1;
-const QStringList kStemMimes = {"audio/mp4", "audio/m4a", "audio/x-m4a", "video/mp4"};
+const QStringList kStemMimes = {"audio/mp4",
+        "audio/m4a",
+        "audio/x-m4a",
+        "video/mp4",
+        // FFmpeg-muxed .stem.mp4 files (e.g. from AI separation) are often
+        // content-detected as QuickTime; still probe them for a stem atom.
+        "video/quicktime"};
 // STEM file are usually detected by probing the specific stem atom contained in
 // file, in case the file's MIME is one of the above. In case the MIME detection
 // fails, we fallback to match the filename extension with "preferred" file
