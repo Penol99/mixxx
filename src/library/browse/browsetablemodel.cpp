@@ -388,6 +388,9 @@ TrackModel::Capabilities BrowseTableModel::getCapabilities() const {
             Capability::LoadToPreviewDeck |
             Capability::LoadToSampler |
             Capability::RemoveFromDisk |
+            // Accessing a browsed track adds it to the library (getOrAddTrack),
+            // giving it a valid id, so analysis/stem separation works here too.
+            Capability::Analyze |
             Capability::Sorting;
 }
 
