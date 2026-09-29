@@ -119,8 +119,11 @@ void AnalyzerThread::doRun() {
 #ifdef __STEM__
     // Always registered; AnalyzerStemSeparation::initialize() decides per track
     // whether to actually run (global setting or on-demand menu request).
-    m_analyzers.push_back(AnalyzerWithState(
-            std::make_unique<AnalyzerStemSeparation>(m_pConfig)));
+    // The progress callback keeps the analysis bar moving during the slow
+    // inference step (runs on this worker thread, same as emitBusyProgress).
+    m_analyzers.push_back(AnalyzerWithState(std::make_unique<AnalyzerStemSeparation>(
+            m_pConfig,
+            [this](AnalyzerProgress progress) { emitBusyProgress(progress); })));
 #endif
     DEBUG_ASSERT(!m_analyzers.empty());
     kLogger.debug() << "Activated" << m_analyzers.size() << "analyzers";

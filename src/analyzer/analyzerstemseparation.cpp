@@ -84,8 +84,10 @@ constexpr char kModelPathKey[] = "StemSeparationModelPath";
 constexpr char kFfmpegPathKey[] = "StemSeparationFfmpegPath";
 } // anonymous namespace
 
-AnalyzerStemSeparation::AnalyzerStemSeparation(UserSettingsPointer pConfig)
+AnalyzerStemSeparation::AnalyzerStemSeparation(UserSettingsPointer pConfig,
+        std::function<void(AnalyzerProgress)> progressCb)
         : m_pConfig(pConfig),
+          m_progressCb(std::move(progressCb)),
           m_framesProcessed(0) {
 }
 
@@ -152,7 +154,14 @@ void AnalyzerStemSeparation::storeResults(TrackPointer pTrack) {
         return; // load() already logged
     }
 
-    const auto stems = separator.separate(samples);
+    // Map the inference's 0..1 chunk progress into the analyzer's finalizing
+    // band (95..100%) so the existing progress bar advances during inference.
+    const auto stems = separator.separate(samples, [this](double frac) {
+        if (m_progressCb) {
+            m_progressCb(kAnalyzerProgressFinalizing +
+                    frac * (kAnalyzerProgressDone - kAnalyzerProgressFinalizing));
+        }
+    });
     if (stems.size() != StemSeparator::kNumStems) {
         kLogger.warning() << "Separation produced no stems for" << pTrack->getLocation();
         return;

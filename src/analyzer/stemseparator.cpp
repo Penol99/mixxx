@@ -89,7 +89,8 @@ bool StemSeparator::load(const QString& modelPath) {
 }
 
 std::vector<std::vector<CSAMPLE>> StemSeparator::separate(
-        const std::vector<CSAMPLE>& interleavedStereo) {
+        const std::vector<CSAMPLE>& interleavedStereo,
+        const std::function<void(double)>& progress) {
     if (!isLoaded() || interleavedStereo.empty()) {
         return {};
     }
@@ -148,6 +149,10 @@ std::vector<std::vector<CSAMPLE>> StemSeparator::separate(
                                 src[f];
                     }
                 }
+            }
+            if (progress) {
+                progress(std::min(1.0,
+                        static_cast<double>(start + frames) / totalFrames));
             }
         }
     } catch (const Ort::Exception& e) {

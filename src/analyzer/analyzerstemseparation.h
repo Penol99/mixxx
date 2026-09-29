@@ -2,9 +2,11 @@
 
 #ifdef __STEM__
 
+#include <functional>
 #include <vector>
 
 #include "analyzer/analyzer.h"
+#include "analyzer/analyzerprogress.h"
 #include "preferences/usersettings.h"
 
 /// Offline AI stem separation (vocals/drums/bass/other).
@@ -16,7 +18,10 @@
 /// mixxxdj/mixxx#15495.
 class AnalyzerStemSeparation : public Analyzer {
   public:
-    explicit AnalyzerStemSeparation(UserSettingsPointer pConfig);
+    /// `progressCb`, if set, is called during the slow inference step with an
+    /// AnalyzerProgress value so the existing analysis progress bar keeps moving.
+    explicit AnalyzerStemSeparation(UserSettingsPointer pConfig,
+            std::function<void(AnalyzerProgress)> progressCb = {});
     ~AnalyzerStemSeparation() override = default;
 
     /// Opt-in and disabled by default: separation is expensive and quadruples
@@ -33,6 +38,7 @@ class AnalyzerStemSeparation : public Analyzer {
 
   private:
     UserSettingsPointer m_pConfig;
+    std::function<void(AnalyzerProgress)> m_progressCb;
     mixxx::audio::SampleRate m_sampleRate;
     mixxx::audio::ChannelCount m_channelCount;
     SINT m_framesProcessed;

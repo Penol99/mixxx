@@ -3,6 +3,7 @@
 #ifdef __STEMSEP_ONNX__
 
 #include <QString>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -30,8 +31,10 @@ class StemSeparator {
     /// Separates interleaved stereo samples (at kModelSampleRate) into
     /// kNumStems interleaved-stereo buffers of the same frame count.
     /// Returns an empty vector on failure or if not loaded.
+    /// `progress`, if set, is called after each chunk with a fraction in [0, 1].
     std::vector<std::vector<CSAMPLE>> separate(
-            const std::vector<CSAMPLE>& interleavedStereo);
+            const std::vector<CSAMPLE>& interleavedStereo,
+            const std::function<void(double)>& progress = {});
 
   private:
     struct Impl;
