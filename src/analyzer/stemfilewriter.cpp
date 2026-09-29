@@ -140,19 +140,62 @@ bool StemFileWriter::injectStemAtom(const QString& mp4Path, const QByteArray& ma
         return false;
     }
 
-    const QByteArray udta = makeBox("udta", makeBox("stem", manifest));
-    const qint64 newMoovSize = static_cast<qint64>(moovSize) + udta.size();
-    if (newMoovSize > 0xFFFFFFFFLL) {
-        kLogger.warning() << "moov would exceed 32-bit size";
-        return false;
+    // Find moov's last child. Muxers (ffmpeg) usually write their own `udta` as
+    // the last child; mixxx's parser only inspects the FIRST udta, so we must put
+    // the stem box inside that existing udta rather than appending a second one.
+    const qint64 moovEnd = moovPos + static_cast<qint64>(moovSize); // == fileSize
+    qint64 childPos = moovPos + 8;
+    qint64 lastChildPos = -1;
+    quint32 lastChildSize = 0;
+    QByteArray lastChildType;
+    while (childPos + 8 <= moovEnd) {
+        f.seek(childPos);
+        const QByteArray hdr = f.read(8);
+        const quint32 csize = qFromBigEndian<quint32>(
+                reinterpret_cast<const uchar*>(hdr.constData()));
+        if (csize < 8 || childPos + static_cast<qint64>(csize) > moovEnd) {
+            kLogger.warning() << "Unexpected moov child box in" << mp4Path;
+            return false;
+        }
+        lastChildPos = childPos;
+        lastChildSize = csize;
+        lastChildType = hdr.mid(4, 4);
+        childPos += csize;
     }
 
-    // Append udta at EOF (== end of moov) and grow moov's size field.
-    f.seek(fileSize);
-    f.write(udta);
-    f.seek(moovPos);
-    quint32 be = qToBigEndian(static_cast<quint32>(newMoovSize));
-    f.write(reinterpret_cast<const char*>(&be), 4);
+    const QByteArray stemBox = makeBox("stem", manifest);
+    auto writeBE32 = [&f](qint64 at, quint32 v) {
+        const quint32 be = qToBigEndian(v);
+        f.seek(at);
+        f.write(reinterpret_cast<const char*>(&be), 4);
+    };
+
+    if (lastChildType == "udta" &&
+            lastChildPos + static_cast<qint64>(lastChildSize) == fileSize) {
+        // Extend the muxer's existing udta (it ends at EOF): append the stem box
+        // and grow both udta and moov.
+        const qint64 newUdtaSize = static_cast<qint64>(lastChildSize) + stemBox.size();
+        const qint64 newMoovSize = static_cast<qint64>(moovSize) + stemBox.size();
+        if (newUdtaSize > 0xFFFFFFFFLL || newMoovSize > 0xFFFFFFFFLL) {
+            kLogger.warning() << "box would exceed 32-bit size";
+            return false;
+        }
+        f.seek(fileSize);
+        f.write(stemBox);
+        writeBE32(lastChildPos, static_cast<quint32>(newUdtaSize));
+        writeBE32(moovPos, static_cast<quint32>(newMoovSize));
+    } else {
+        // No trailing udta: append a fresh udta{stem} and grow moov.
+        const QByteArray udta = makeBox("udta", stemBox);
+        const qint64 newMoovSize = static_cast<qint64>(moovSize) + udta.size();
+        if (newMoovSize > 0xFFFFFFFFLL) {
+            kLogger.warning() << "moov would exceed 32-bit size";
+            return false;
+        }
+        f.seek(fileSize);
+        f.write(udta);
+        writeBE32(moovPos, static_cast<quint32>(newMoovSize));
+    }
     f.close();
     return true;
 }
@@ -225,33 +268,12 @@ bool StemFileWriter::write(const QString& outPath,
 }
 
 bool StemFileWriter::selfCheck() {
-    // Build a minimal file containing only a `moov` box (with a dummy child),
-    // as ffmpeg leaves it when moov is the last box.
-    const QByteArray moov = makeBox("moov", makeBox("mvhd", QByteArray(8, '\0')));
-    QTemporaryDir tmp;
-    if (!tmp.isValid()) {
-        return false;
-    }
-    const QString path = tmp.filePath("t.mp4");
-    {
-        QFile f(path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            return false;
-        }
-        f.write(moov);
-    }
-
     const QByteArray manifest = manifestJson();
-    if (!injectStemAtom(path, manifest)) {
-        return false;
-    }
 
-    // Re-parse exactly like StemInfoImporter: descend moov -> udta -> stem.
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        return false;
-    }
-    const QByteArray blob = f.readAll();
+    // Descends moov -> FIRST udta -> stem exactly like StemInfoImporter, and
+    // confirms the manifest matches. Because mixxx only inspects the first udta,
+    // this catches the "muxer already wrote a udta" case (a second udta would be
+    // invisible to the parser).
     auto findChild = [](const QByteArray& data, qint64 begin, qint64 end,
                              const char* type, qint64& outBegin, qint64& outEnd) {
         qint64 p = begin;
@@ -270,18 +292,50 @@ bool StemFileWriter::selfCheck() {
         }
         return false;
     };
-    qint64 mb, me, ub, ue, sb, se;
-    if (!findChild(blob, 0, blob.size(), "moov", mb, me) ||
-            !findChild(blob, mb, me, "udta", ub, ue) ||
-            !findChild(blob, ub, ue, "stem", sb, se)) {
-        kLogger.warning() << "selfCheck: injected atom not found by parser";
-        return false;
-    }
-    const bool ok = blob.mid(sb, se - sb) == manifest;
-    if (!ok) {
-        kLogger.warning() << "selfCheck: manifest payload mismatch";
-    }
-    return ok;
+
+    auto checkCase = [&](const QByteArray& moov) -> bool {
+        QTemporaryDir tmp;
+        if (!tmp.isValid()) {
+            return false;
+        }
+        const QString path = tmp.filePath("t.mp4");
+        {
+            QFile f(path);
+            if (!f.open(QIODevice::WriteOnly)) {
+                return false;
+            }
+            f.write(moov);
+        }
+        if (!injectStemAtom(path, manifest)) {
+            return false;
+        }
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) {
+            return false;
+        }
+        const QByteArray blob = f.readAll();
+        qint64 mb, me, ub, ue, sb, se;
+        if (!findChild(blob, 0, blob.size(), "moov", mb, me) ||
+                !findChild(blob, mb, me, "udta", ub, ue) ||
+                !findChild(blob, ub, ue, "stem", sb, se)) {
+            kLogger.warning() << "selfCheck: injected atom not found by parser";
+            return false;
+        }
+        if (blob.mid(sb, se - sb) != manifest) {
+            kLogger.warning() << "selfCheck: manifest payload mismatch";
+            return false;
+        }
+        return true;
+    };
+
+    // Case 1: moov with no udta (append a fresh udta).
+    const QByteArray noUdta = makeBox("moov", makeBox("mvhd", QByteArray(8, '\0')));
+    // Case 2: moov whose last child is a udta (as ffmpeg leaves it) — the stem
+    // box must be merged into that existing udta, not added as a second one.
+    const QByteArray withUdta = makeBox("moov",
+            makeBox("mvhd", QByteArray(8, '\0')) +
+                    makeBox("udta", makeBox("meta", QByteArray(4, '\0'))));
+    return checkCase(noUdta) && checkCase(withUdta);
 }
 
 #endif // __STEMSEP_ONNX__
