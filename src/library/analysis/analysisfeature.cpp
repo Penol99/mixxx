@@ -54,6 +54,11 @@ AnalysisFeature::AnalysisFeature(
           m_pSidebarModel(make_parented<TreeItemModel>(this)),
           m_pAnalysisView(nullptr),
           m_title(m_baseTitle) {
+    // Not read-only: AnalyzerStemSeparation updates it via the thread-safe
+    // static ControlObject::set() from the analyzer worker thread.
+    m_pStemSeparationProgress = std::make_unique<ControlObject>(
+            ConfigKey(QStringLiteral("[Library]"),
+                    QStringLiteral("stem_separation_progress")));
 }
 
 AnalysisFeature::~AnalysisFeature() {

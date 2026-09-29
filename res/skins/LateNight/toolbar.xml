@@ -120,6 +120,30 @@
 
       <WidgetGroup><Size>me,min</Size></WidgetGroup>
 
+      <WidgetGroup><!-- AI stem separation progress readout -->
+        <ObjectName>StemSeparationStatus</ObjectName>
+        <Layout>horizontal</Layout>
+        <SizePolicy>min,min</SizePolicy>
+        <Children>
+          <Number>
+            <ObjectName>LatencyLabel</ObjectName>
+            <Size>170f,20f</Size>
+            <Alignment>center</Alignment>
+            <Text>Separating stems... %1%</Text>
+            <NumberOfDigits>0</NumberOfDigits>
+            <Connection>
+              <ConfigKey>[Library],stem_separation_progress</ConfigKey>
+            </Connection>
+          </Number>
+        </Children>
+        <Connection>
+          <ConfigKey>[Library],stem_separation_progress</ConfigKey>
+          <BindProperty>visible</BindProperty>
+        </Connection>
+      </WidgetGroup><!-- /AI stem separation progress readout -->
+
+      <WidgetGroup><Size>12f,min</Size></WidgetGroup>
+
       <StatusLight>
         <TooltipId>autodj_status</TooltipId>
         <ObjectName>AutoDjStatus</ObjectName>

@@ -22,6 +22,7 @@ extern "C" {
 
 #include "analyzer/stemfilewriter.h"
 #include "analyzer/stemseparator.h"
+#include "control/controlobject.h"
 #include "util/cmdlineargs.h"
 #endif
 
@@ -82,6 +83,10 @@ constexpr char kConfigGroup[] = "[Library]";
 constexpr char kConfigKey[] = "StemSeparationEnabled";
 constexpr char kModelPathKey[] = "StemSeparationModelPath";
 constexpr char kFfmpegPathKey[] = "StemSeparationFfmpegPath";
+#ifdef __STEMSEP_ONNX__
+// Global 0-100 readout of the running separation (created by AnalysisFeature).
+const ConfigKey kProgressKey("[Library]", "stem_separation_progress");
+#endif
 } // anonymous namespace
 
 AnalyzerStemSeparation::AnalyzerStemSeparation(UserSettingsPointer pConfig,
@@ -155,8 +160,11 @@ void AnalyzerStemSeparation::storeResults(TrackPointer pTrack) {
     }
 
     // Map the inference's 0..1 chunk progress into the analyzer's finalizing
-    // band (95..100%) so the existing progress bar advances during inference.
+    // band (95..100%) so the existing progress bar advances during inference,
+    // and publish a 0..100 readout for the skin.
+    ControlObject::set(kProgressKey, 1.0); // >0 so the readout appears immediately
     const auto stems = separator.separate(samples, [this](double frac) {
+        ControlObject::set(kProgressKey, frac * 100.0);
         if (m_progressCb) {
             // Busy progress must stay strictly below Done (asserted by the
             // scheduler); the final Done is emitted by AnalyzerThread.
@@ -166,6 +174,7 @@ void AnalyzerStemSeparation::storeResults(TrackPointer pTrack) {
                                            kAnalyzerProgressFinalizing)));
         }
     });
+    ControlObject::set(kProgressKey, 0.0); // hide the readout when finished
     if (stems.size() != StemSeparator::kNumStems) {
         kLogger.warning() << "Separation produced no stems for" << pTrack->getLocation();
         return;

@@ -4,8 +4,10 @@
 #include <QObject>
 #include <QUrl>
 #include <QVariant>
+#include <memory>
 
 #include "analyzer/trackanalysisscheduler.h"
+#include "control/controlobject.h"
 #include "library/libraryfeature.h"
 #include "library/treeitemmodel.h"
 #include "preferences/usersettings.h"
@@ -61,6 +63,10 @@ class AnalysisFeature : public LibraryFeature {
     const QString m_baseTitle;
 
     TrackAnalysisScheduler::Pointer m_pTrackAnalysisScheduler;
+
+    // Global 0-100 progress of the currently running AI stem separation, set by
+    // AnalyzerStemSeparation and read by skins to show an "unmissable" readout.
+    std::unique_ptr<ControlObject> m_pStemSeparationProgress;
 
     parented_ptr<TreeItemModel> m_pSidebarModel;
     DlgAnalysis* m_pAnalysisView;
